@@ -36,6 +36,7 @@ func MakeTokenBucket(refillRate float64, capacity float64,
 }
 
 func (tb *TokenBucket) start(refillMs int64) {
+	numRefill := float64(refillMs) / 1000.0
 	go func() {
 		for {
 			select {
@@ -45,7 +46,7 @@ func (tb *TokenBucket) start(refillMs int64) {
 				tb.cleanup()
 				return
 			case <-tb.timeSource(time.Duration(refillMs) * time.Millisecond):
-				tb.refillTokens(float64(refillMs) / 1000.0)
+				tb.refillTokens(numRefill)
 			}		
 		}
 	}()
