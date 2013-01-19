@@ -1,25 +1,25 @@
 package throttler
 
 import (
-	"time"
 	"math"
+	"time"
 )
 
 type TokenRequest struct {
-	returnCh chan bool
+	returnCh        chan bool
 	requestedTokens float64
 }
 
-type TimeSource func(d time.Duration) (<-chan time.Time)
+type TimeSource func(d time.Duration) <-chan time.Time
 
 // http://en.wikipedia.org/wiki/Token_bucket
 type TokenBucket struct {
 	refillRate float64 // per second
-	numTokens float64
-	capacity float64
+	numTokens  float64
+	capacity   float64
 	timeSource TimeSource
-	stopCh chan bool
-	tokenCh chan *TokenRequest
+	stopCh     chan bool
+	tokenCh    chan *TokenRequest
 }
 
 func MakeTokenRequest(c chan bool, requestedTokens float64) *TokenRequest {
@@ -47,10 +47,10 @@ func (tb *TokenBucket) start(refillMs int64) {
 				return
 			case <-tb.timeSource(time.Duration(refillMs) * time.Millisecond):
 				tb.refillTokens(numRefill)
-			}		
+			}
 		}
 	}()
-}	
+}
 
 func (tb *TokenBucket) processRequest(req *TokenRequest) {
 	if tb.numTokens < req.requestedTokens {
@@ -60,7 +60,7 @@ func (tb *TokenBucket) processRequest(req *TokenRequest) {
 		req.returnCh <- true
 	}
 }
-	
+
 func (tb *TokenBucket) refillTokens(refillRatio float64) {
 	totTokens := tb.numTokens + (tb.refillRate * refillRatio)
 	tb.numTokens = math.Min(totTokens, tb.capacity)
@@ -69,10 +69,8 @@ func (tb *TokenBucket) refillTokens(refillRatio float64) {
 func (tb *TokenBucket) cleanup() {
 	close(tb.tokenCh)
 	close(tb.stopCh)
-}	
-
-func (tb *TokenBucket) TokenChannel() (chan<- *TokenRequest) {
-	return tb.tokenCh
 }
 
-
+func (tb *TokenBucket) TokenChannel() chan<- *TokenRequest {
+	return tb.tokenCh
+}

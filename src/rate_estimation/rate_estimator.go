@@ -22,10 +22,10 @@ type RateEstimator interface {
 //  w - sum of time so far (this gets decayed and added to on LogEvent, as time passes)
 
 type ExponentialRateEstimator struct {
-	alpha float64 
-	last float64
-	s float64
-	w float64
+	alpha float64
+	last  float64
+	s     float64
+	w     float64
 }
 
 // an estimator that uses halflife parameter to exponentially decay
@@ -38,10 +38,10 @@ type ExponentialRateEstimator struct {
 // In HFExponentialEstimator, since our parameter is when a sample decays by 1/2,
 //   this means that (2) ^ -(1/ halflife) is equivalent to e ^ - (1/alpha)
 type HfExponentialRateEstimator struct {
-	p float64 // will be (1/2) ^ (1/halflife)
+	p    float64 // will be (1/2) ^ (1/halflife)
 	last float64
-	s float64
-	w float64
+	s    float64
+	w    float64
 }
 
 // alpha is a time constant, at which an older sample is discounted to 1/e relative to current data
@@ -66,10 +66,10 @@ func MakeHfExpRateEstimator(hf float64, t float64) *HfExponentialRateEstimator {
 
 func (e *ExponentialRateEstimator) decay(tu float64) {
 	pi := math.Exp((-1 * (tu - e.last)) / e.alpha)
-	e.s = e.s * pi 
+	e.s = e.s * pi
 	e.w = e.w * pi
-	e.last = tu	
-}	
+	e.last = tu
+}
 
 // Log event val, at time t
 func (e *ExponentialRateEstimator) LogEvent(t float64, val float64) {
@@ -80,17 +80,17 @@ func (e *ExponentialRateEstimator) LogEvent(t float64, val float64) {
 
 // get the current rate
 func (e *ExponentialRateEstimator) Rate(t float64) float64 {
-//	e.decay(t)
+	//	e.decay(t)
 	return e.s / e.w
 }
 
 // decay the rate estimate so far, using tu as the reference/current time
 func (e *HfExponentialRateEstimator) decay(tu float64) {
-	pi := math.Pow(e.p, tu - e.last)
-	e.s = e.s * pi 
+	pi := math.Pow(e.p, tu-e.last)
+	e.s = e.s * pi
 	e.w = e.w * pi
 	e.last = tu
-}	
+}
 
 func (e *HfExponentialRateEstimator) LogEvent(t float64, val float64) {
 	e.decay(t)
@@ -99,7 +99,6 @@ func (e *HfExponentialRateEstimator) LogEvent(t float64, val float64) {
 }
 
 func (e *HfExponentialRateEstimator) Rate(t float64) float64 {
-//	e.decay(t)
+	//	e.decay(t)
 	return e.s / e.w
 }
-
