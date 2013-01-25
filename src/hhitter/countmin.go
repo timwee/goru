@@ -4,6 +4,7 @@ import (
 	"errors"
 	"hash"
 	"hash/fnv"
+	"math"
 )
 
 var ErrElementNotFound = errors.New("cms: element not found")
@@ -12,15 +13,24 @@ var LOWER32_MASK uint64 = ^uint64(0) >> 32
 
 // implementation of CMS (count min sketch)
 type CountMin struct {
-	matrix     []int32 // flattened matrix
-	numBuckets uint32
+	matrix     [][]int32
+	numBuckets uint32      // better to be prime
 	k          uint32      // num hashes
 	h          hash.Hash64 // hash to use, we use a + b * i, where i in (0,k], and a and b are obtained from hash h's upper 32 and lower 32 bits
 }
 
-func MakeCMS(size uint32, numHash uint32, seed int32) *CountMin {
-	mat := make([]int32, numHash*size)
+func MakeCMSDirect(size uint32, numHash uint32, seed int64) *CountMin {
+	mat := make([][]int32, numHash)
+	for i, _ := range mat {
+		mat[i] = make([]int32, size)
+	}
 	return &CountMin{mat, size, numHash, fnv.New64()}
+}
+
+func MakeCMS(eps float64, p_error float64, seed int64) *CountMin {
+	size := uint32(math.Ceil(2 / eps))
+	numHashes := uint32(math.Ceil(math.Log2(1 / p_error)))
+	return MakeCMSDirect(size, numHashes, seed)
 }
 
 func (cms *CountMin) getHashParams(data []byte) (uint32, uint32) {
@@ -33,7 +43,7 @@ func (cms *CountMin) getHashParams(data []byte) (uint32, uint32) {
 }
 
 func (cms *CountMin) getBuckets(data []byte) []uint32 {
-	buckets := make([]uint32, cms.k)
+	buckets := make([]uint32, cms.k, cms.k)
 	a, b := cms.getHashParams(data)
 	for i := uint32(0); i < cms.k; i++ {
 		buckets[i] = (a + (b * i)) % cms.numBuckets
@@ -45,7 +55,7 @@ func (cms *CountMin) getBuckets(data []byte) []uint32 {
 func (cms *CountMin) Count(data []byte) (min int32, err error) {
 	min = MAX_INT32
 	for i, b := range cms.getBuckets(data) {
-		cur := cms.matrix[uint32(b)+(uint32(i)*cms.numBuckets)]
+		cur := cms.matrix[i][b]
 		if min > cur {
 			min = cur
 		}
@@ -57,13 +67,12 @@ func (cms *CountMin) Count(data []byte) (min int32, err error) {
 }
 
 // increments and returns min count
-func (cms *CountMin) Inc(data []byte) int32 {
+func (cms *CountMin) Update(data []byte, cnt int32) int32 {
 	min := MAX_INT32
 	for i, b := range cms.getBuckets(data) {
-		idx := uint32(b) + (uint32(i) * cms.numBuckets)
-		cms.matrix[idx] += 1
-		if min > cms.matrix[idx] {
-			min = cms.matrix[idx]
+		cms.matrix[i][b] += cnt
+		if min > cms.matrix[i][b] {
+			min = cms.matrix[i][b]
 		}
 	}
 	return min
