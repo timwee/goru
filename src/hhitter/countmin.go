@@ -66,7 +66,7 @@ func (cms *CountMin) Count(data []byte) (min int32, err error) {
 	return min, nil
 }
 
-// increments and returns min count
+// increments and returns estimated count so far
 func (cms *CountMin) Update(data []byte, cnt int32) int32 {
 	min := MAX_INT32
 	for i, b := range cms.getBuckets(data) {
