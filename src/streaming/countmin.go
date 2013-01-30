@@ -1,4 +1,4 @@
-package hhitter
+package streaming
 
 import (
 	"errors"
@@ -15,9 +15,15 @@ var MAX_FLOAT64 float64 = math.Inf(1)
 type UpdateFn func(elem *CMElement, update *CMUpdate) *CMElement
 type ReadFn func(elem *CMElement, readTime time.Time) float64
 
+type CMSketch interface {
+	Update(data []byte, weight float64)
+	Count(data []byte) (float64, error)
+	Reset()
+}
+
 // implementation of CMS (count min sketch), optionally exponentially decayed
 type CountMin struct {
-	matrix     [][]CMElement
+	matrix     [][]*CMElement
 	numBuckets uint32      // better to be prime
 	k          uint32      // num hashes
 	h          hash.Hash64 // hash to use, we use a + b * i, where i in (0,k], and a and b are obtained from hash h's upper 32 and lower 32 bits
@@ -34,6 +40,10 @@ type CMUpdate struct {
 type CMElement struct {
 	Last_update time.Time
 	Weight      float64
+}
+
+func (ce *CMElement) reset() {
+	ce.Weight = 0.0
 }
 
 func exp_decay(decay float64, prev time.Time, cur time.Time, weight float64) float64 {
@@ -68,9 +78,12 @@ func Plain_update(elem *CMElement, update *CMUpdate) *CMElement {
 }
 
 func MakeCMSDirect(size uint32, numHash uint32, seed int64, updateF UpdateFn, readF ReadFn) *CountMin {
-	mat := make([][]CMElement, numHash)
+	mat := make([][]*CMElement, numHash)
 	for i, _ := range mat {
-		mat[i] = make([]CMElement, size)
+		mat[i] = make([]*CMElement, size)
+		for j, _ := range mat[i] {
+			mat[i][j] = &CMElement{}
+		}
 	}
 	return &CountMin{mat, size, numHash, fnv.New64(), updateF, readF}
 }
@@ -110,14 +123,14 @@ func (cms *CountMin) getBuckets(data []byte) []uint32 {
 }
 
 // get estimated count
-func (cms *CountMin) Count(data []byte) (min float64, err error) {
+func (cms *CountMin) Count(data []byte) (float64, error) {
 	return cms.CountT(data, time.Now())
 }
 
-func (cms *CountMin) CountT(data []byte, readTime time.Time) (min float64, err error) {
-	min = MAX_FLOAT64
+func (cms *CountMin) CountT(data []byte, readTime time.Time) (float64, error) {
+	min := MAX_FLOAT64
 	for i, b := range cms.getBuckets(data) {
-		cur := cms.readFn(&cms.matrix[i][b], readTime)
+		cur := cms.readFn(cms.matrix[i][b], readTime)
 		if min > cur {
 			min = cur
 		}
@@ -129,19 +142,22 @@ func (cms *CountMin) CountT(data []byte, readTime time.Time) (min float64, err e
 }
 
 // increments and returns estimated count so far
-func (cms *CountMin) Update(data []byte, weight float64) float64 {
-	return cms.UpdateT(data, weight, time.Now())
+func (cms *CountMin) Update(data []byte, weight float64) {
+	cms.UpdateT(data, weight, time.Now())
 }
 
-func (cms *CountMin) UpdateT(data []byte, weight float64, updateTime time.Time) float64 {
+func (cms *CountMin) UpdateT(data []byte, weight float64, updateTime time.Time) {
 	update := &CMUpdate{data, weight, updateTime}
-	min := MAX_FLOAT64
 	for i, b := range cms.getBuckets(data) {
-		cur := &cms.matrix[i][b]
+		cur := cms.matrix[i][b]
 		cur = cms.updateFn(cur, update)
-		if min > cur.Weight {
-			min = cur.Weight
+	}
+}
+
+func (cms *CountMin) Reset() {
+	for _, row := range cms.matrix {
+		for _, elem := range row {
+			elem.reset()
 		}
 	}
-	return min
 }

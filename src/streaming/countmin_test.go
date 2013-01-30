@@ -1,11 +1,11 @@
-package hhitter_test
+package streaming_test
 
 import (
 	"encoding/binary"
 	"fmt"
-	"hhitter"
 	"math"
 	"math/rand"
+	"streaming"
 	"testing"
 	"time"
 )
@@ -13,7 +13,7 @@ import (
 var eps float64 = 0.0001
 
 func TestCMSSanity(t *testing.T) {
-	cms := hhitter.MakeCMSDirect(100, 100, 2.0, hhitter.Plain_update, hhitter.Plain_read)
+	cms := streaming.MakeCMSDirect(100, 100, 2.0, streaming.Plain_update, streaming.Plain_read)
 	k1 := []byte("hello")
 	cnt, _ := cms.Count(k1)
 	if 0 != cnt {
@@ -32,12 +32,36 @@ func TestCMSSanity(t *testing.T) {
 func TestCMSExpSanity(t *testing.T) {
 	now := time.Now()
 	k1 := []byte("hello")
-	cms := hhitter.MakeExpCMS(0.001, 0.0001, 5, 0.1)
+	cms := streaming.MakeExpCMS(0.001, 0.0001, 5, 0.1)
 	cms.UpdateT(k1, 1.0, now)
 	cnt, _ := cms.CountT(k1, now)
 
 	if math.Abs(cnt-1.0) > eps {
 		t.Errorf("cnt should be 1.0, instead was %d", cnt)
+	}
+}
+
+func TestWindowedCmsSanity(t *testing.T) {
+	w, _ := streaming.MakeWindowedCMS(0.001, 0.0001, 5, 1000, 100)
+	k1 := []byte("hello")
+	w.Update(k1, 1.0)
+
+	cnt, _ := w.Count(k1)
+
+	if math.Abs(cnt-1.0) > eps {
+		t.Errorf("cnt should be 1.0, but was %d", cnt)
+	}
+}
+
+func TestReset(t *testing.T) {
+	cms := streaming.MakeCMSDirect(100, 100, 2.0, streaming.Plain_update, streaming.Plain_read)
+	k1 := []byte("hello")
+	cms.Update(k1, 1.0)
+	cms.Reset()
+	cnt, _ := cms.Count(k1)
+
+	if math.Abs(cnt-0.0) > eps {
+		t.Errorf("reset should have made count be 0, instead was %d", cnt)
 	}
 }
 
@@ -47,7 +71,7 @@ func TestCMSAccuracy(t *testing.T) {
 	msb := int32(20)
 	numItems := 1000000
 	items := make([]int32, numItems)
-	cms := hhitter.MakeCMS(0.0001, 0.01, seed)
+	cms := streaming.MakeCMS(0.0001, 0.01, seed)
 	for i, _ := range items {
 		next_msb := uint32(rand.Int31n(msb))
 		items[i] = rand.Int31n(int32(1 << next_msb))
