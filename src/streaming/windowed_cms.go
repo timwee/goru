@@ -34,6 +34,7 @@ func (w *WindowedCMS) Update(data []byte, weight float64) {
 		w.Counter = 0
 	}
 	w.sketches.Front().Value.(*CountMin).Update(data, weight)
+	w.Counter += 1
 }
 
 func (w *WindowedCMS) Count(data []byte) (float64, error) {

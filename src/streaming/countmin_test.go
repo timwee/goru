@@ -53,6 +53,21 @@ func TestWindowedCmsSanity(t *testing.T) {
 	}
 }
 
+func TestWindowedCmsOutOfWindow(t *testing.T) {
+	w, _ := streaming.MakeWindowedCMS(0.001, 0.0001, 5, 2, 1)
+	k1 := []byte("hello")
+	k2 := []byte("hello2")
+	w.Update(k1, 1.0)
+	w.Update(k2, 1.0)
+	w.Update(k2, 1.0)
+
+	cnt, _ := w.Count(k1)
+
+	if math.Abs(cnt-0.0) > eps {
+		t.Errorf("cnt should be 0.0, but was %d", cnt)
+	}
+}
+
 func TestReset(t *testing.T) {
 	cms := streaming.MakeCMSDirect(100, 100, 2.0, streaming.Plain_update, streaming.Plain_read)
 	k1 := []byte("hello")
